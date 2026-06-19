@@ -1,0 +1,59 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -scheme ${{ env.SCHEME }} \
+            -project ${{ env.PROJECT }}
+        env:
+          PROJECT: MyApp.xcodeproj
+          SCHEME: MyApp
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project ${{ env.PROJECT }} \
+            -scheme ${{ env.SCHEME }} \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcpretty
+        env:
+          PROJECT: MyApp.xcodeproj
+          SCHEME: MyApp
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project ${{ env.PROJECT }} \
+            -scheme ${{ env.SCHEME }} \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcpretty
+        env:
+          PROJECT: MyApp.xcodeproj
+          SCHEME: MyApp
