@@ -34,9 +34,18 @@ class Site:
 
 
 @dataclass
+class RelativeWeekend:
+    """실행 시점 요일에 따라 주말 그룹에 동적으로 추가되는 상대 날짜 키워드."""
+    group_index: int
+    today: list[str] = field(default_factory=list)
+    tomorrow: list[str] = field(default_factory=list)
+
+
+@dataclass
 class MatchRules:
     all_groups: list[list[str]] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
+    relative_weekend: "RelativeWeekend | None" = None
 
 
 @dataclass
@@ -59,9 +68,18 @@ def load_config(config_path: Path | None = None) -> Config:
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
     match_raw = raw.get("match", {}) or {}
+    rel_raw = match_raw.get("relative_weekend") or None
+    relative = None
+    if rel_raw:
+        relative = RelativeWeekend(
+            group_index=int(rel_raw.get("weekend_group_index", 0)),
+            today=[str(w) for w in rel_raw.get("today", [])],
+            tomorrow=[str(w) for w in rel_raw.get("tomorrow", [])],
+        )
     match = MatchRules(
         all_groups=[[str(w) for w in group] for group in match_raw.get("all_groups", [])],
         exclude=[str(w) for w in match_raw.get("exclude", [])],
+        relative_weekend=relative,
     )
 
     sites = [

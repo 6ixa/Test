@@ -1,7 +1,41 @@
 """글 제목/미리보기 텍스트가 알림 조건에 맞는지 판별한다."""
 from __future__ import annotations
 
+from datetime import date
+
 from .config import MatchRules
+
+
+def resolve_for_date(rules: MatchRules, today: date) -> MatchRules:
+    """
+    상대 날짜 키워드('오늘'/'내일')를 '실행 시점 요일'에 따라 주말 그룹에 넣는다.
+      - '오늘'  : 오늘이 토(5)/일(6) 일 때만 주말로 인정
+      - '내일'  : 내일이 토/일(=오늘이 금(4)/토(5)) 일 때만 주말로 인정
+    조건에 맞지 않으면 상대 키워드를 넣지 않아, 평일에 올라온 '오늘' 글은
+    주말 조건을 충족하지 못한다.
+    """
+    rel = rules.relative_weekend
+    if not rel:
+        return rules
+
+    weekday = today.weekday()  # 월=0 ... 토=5, 일=6
+    extra: list[str] = []
+    if weekday in (5, 6):        # 오늘이 주말
+        extra += rel.today
+    if weekday in (4, 5):        # 내일이 주말 (오늘 금/토)
+        extra += rel.tomorrow
+    if not extra:
+        return rules
+
+    new_groups = [list(g) for g in rules.all_groups]
+    idx = rel.group_index
+    if 0 <= idx < len(new_groups):
+        new_groups[idx] = new_groups[idx] + extra
+    return MatchRules(
+        all_groups=new_groups,
+        exclude=list(rules.exclude),
+        relative_weekend=rel,
+    )
 
 
 def _normalize(text: str) -> str:

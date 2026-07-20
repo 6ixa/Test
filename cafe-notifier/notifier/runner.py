@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from .config import Config
-from .matcher import matches
+from .matcher import matches, resolve_for_date
 from .scrapers import scrape_site
 from .scrapers.base import launch_context
 from .store import SeenStore
@@ -30,6 +30,9 @@ def run_once(cfg: Config, headless: bool = True, debug: bool = False,
             cfg.telegram_token, cfg.telegram_chat_id, cfg.disable_web_page_preview
         )
 
+    # 이번 사이클의 요일 기준으로 '오늘'/'내일' 주말 키워드를 확정한다.
+    rules = resolve_for_date(cfg.match, datetime.now().date())
+
     notified = 0
     pw, context = launch_context(headless=headless)
     try:
@@ -44,7 +47,7 @@ def run_once(cfg: Config, headless: bool = True, debug: bool = False,
                 continue
 
             for art in articles:
-                if not matches(art.title, cfg.match):
+                if not matches(art.title, rules):
                     continue
                 if store.is_seen(site.name, art.article_id):
                     continue
