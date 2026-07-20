@@ -32,6 +32,7 @@ class Site:
     url: str
     link_pattern: str
     body_selector: str = ""  # 본문 영역 CSS 선택자(비면 페이지 전체 텍스트 사용)
+    page_param: str = ""     # DOM 페이지네이션 파라미터 템플릿(예: "&page={page}")
 
 
 @dataclass
@@ -69,6 +70,7 @@ class Config:
     max_body_fetches: int  # 사이클·사이트당 본문 조회 상한(차단 방지)
     body_delay_ms: int     # 본문 조회 사이 대기(ms)
     skip_title_contains: list[str]  # 제목에 이 단어가 있으면 목록에서 제외(공지/필독 등)
+    pages: int             # 게시판을 몇 페이지까지 확인할지
 
 
 def load_config(config_path: Path | None = None) -> Config:
@@ -116,6 +118,7 @@ def load_config(config_path: Path | None = None) -> Config:
             url=s["url"],
             link_pattern=s["link_pattern"],
             body_selector=str(s.get("body_selector", "")),
+            page_param=str(s.get("page_param", "")),
         )
         for s in raw.get("sites", [])
     ]
@@ -132,5 +135,6 @@ def load_config(config_path: Path | None = None) -> Config:
         max_body_fetches=int(scraping.get("max_body_fetches", 20)),
         body_delay_ms=int(scraping.get("body_delay_ms", 800)),
         skip_title_contains=[str(s) for s in scraping.get("skip_title_contains",
-                                                          ["공지", "필독"])],
+                                                          ["공지", "필독", "안내"])],
+        pages=max(1, int(scraping.get("pages", 1))),
     )

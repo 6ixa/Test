@@ -12,10 +12,11 @@ telegram:
 
 # 크롤링/부하 제어
 scraping:
+  pages: 2               # 게시판 몇 페이지까지 확인할지(최근 글 기준)
   max_body_fetches: 20   # 한 사이클·사이트당 본문 조회 상한(차단 방지)
   body_delay_ms: 800     # 본문 조회 사이 대기(ms)
-  # 제목에 이 단어가 들어간 글은 목록에서 제외(공지/필독 등 상단 고정글).
-  skip_title_contains: ["공지", "필독"]
+  # 제목에 이 단어가 들어간 글은 목록에서 제외(공지/필독/안내 등 상단 고정글).
+  skip_title_contains: ["공지", "필독", "안내"]
 
 # -------------------------------------------------------------
 #  키워드 매칭 규칙 (2단계 필터)
@@ -84,6 +85,7 @@ sites:
 
   - name: "다음 동아리 농구방"
     type: daum
-    url: "https://m.cafe.daum.net/dongarry/Dilr?boardType="
+    url: "https://cafe.daum.net/dongarry/Dilr?boardType="
     link_pattern: "/dongarry/[A-Za-z0-9]+/\\d+"
     body_selector: "#article, .article_view, .cafe_article"
+    page_param: "&page={page}"   # 2페이지 이상 확인 시 붙이는 파라미터(--debug 로 확인·조정)

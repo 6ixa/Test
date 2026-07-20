@@ -21,7 +21,7 @@ from .base import Article, PAGE_TIMEOUT_MS
 API = (
     "https://apis.naver.com/cafe-web/cafe2/ArticleListV2dot1.json"
     "?search.clubid={clubid}&search.menuid={menuid}"
-    "&search.queryType=lastArticle&search.page=1&search.perPage={n}&ad=false"
+    "&search.queryType=lastArticle&search.page={page}&search.perPage={n}&ad=false"
 )
 
 
@@ -74,45 +74,48 @@ def parse_article_list(json_text: str, clubid: str, menuid: str, name: str,
 
 def fetch_naver_articles(context, url: str, name: str,
                          skip_title_contains: list[str] | None = None,
-                         per_page: int = 50, debug: bool = False) -> list[Article]:
-    """로그인 세션 페이지 안에서 네이버 글 목록 API 를 호출해 파싱한다."""
+                         pages: int = 1, per_page: int = 50,
+                         debug: bool = False) -> list[Article]:
+    """로그인 세션 페이지 안에서 네이버 글 목록 API 를 호출해 파싱한다(최대 pages 페이지)."""
     clubid, menuid = parse_ids_from_url(url)
     if not clubid or not menuid:
         if debug:
             print(f"      [DEBUG] {name}: URL 에서 clubid/menuid 추출 실패 → DOM 폴백")
         return []
 
-    api_url = API.format(clubid=clubid, menuid=menuid, n=per_page)
     page = context.new_page()
+    merged: dict[str, Article] = {}
     try:
         # 쿠키/리퍼러 확보를 위해 먼저 해당 카페 페이지를 연다.
         page.goto(url, timeout=PAGE_TIMEOUT_MS, wait_until="domcontentloaded")
         page.wait_for_timeout(500)
-        text = page.evaluate(
-            """async (apiUrl) => {
-                const r = await fetch(apiUrl, {credentials: 'include',
-                    headers: {'referer': location.href, 'x-cafe-product': 'pc'}});
-                return await r.text();
-            }""",
-            api_url,
-        )
-    except Exception as exc:  # noqa: BLE001
-        if debug:
-            print(f"      [DEBUG] {name}: API 호출 실패({exc}) → DOM 폴백")
-        return []
+        for p in range(1, max(1, pages) + 1):
+            api_url = API.format(clubid=clubid, menuid=menuid, page=p, n=per_page)
+            try:
+                text = page.evaluate(
+                    """async (apiUrl) => {
+                        const r = await fetch(apiUrl, {credentials: 'include',
+                            headers: {'referer': location.href, 'x-cafe-product': 'pc'}});
+                        return await r.text();
+                    }""",
+                    api_url,
+                )
+                for a in parse_article_list(text, clubid, menuid, name, skip_title_contains):
+                    merged.setdefault(a.article_id, a)
+            except Exception as exc:  # noqa: BLE001
+                if debug:
+                    print(f"      [DEBUG] {name}: {p}페이지 API 실패({exc})")
+                    try:
+                        print(f"      [DEBUG] 응답 앞부분: {text[:200]!r}")
+                    except Exception:
+                        pass
     finally:
         page.close()
 
-    try:
-        articles = parse_article_list(text, clubid, menuid, name, skip_title_contains)
-    except Exception as exc:  # noqa: BLE001
-        if debug:
-            print(f"      [DEBUG] {name}: API 응답 파싱 실패({exc}) → DOM 폴백")
-            print(f"      [DEBUG] 응답 앞부분: {text[:200]!r}")
-        return []
-
+    articles = list(merged.values())
     if debug:
-        print(f"[DEBUG] {name}(API): 일반 글 {len(articles)}개 추출(공지/필독 제외)")
+        print(f"[DEBUG] {name}(API): {max(1, pages)}페이지 · 일반 글 {len(articles)}개 "
+              f"추출(공지/필독 제외)")
         for a in articles[:20]:
             print(f"   - ({a.article_id}) {a.title[:50]}")
         if not articles:

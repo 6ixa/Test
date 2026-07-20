@@ -114,9 +114,7 @@ def fetch_body(context: BrowserContext, url: str, body_selector: str = "",
         page.close()
 
 
-def scrape_site(context: BrowserContext, name: str, url: str, link_pattern: str,
-                debug: bool = False) -> list[Article]:
-    link_re = re.compile(link_pattern)
+def _load_page_links(context, url: str, link_re) -> list[tuple[str, str]]:
     page = context.new_page()
     try:
         page.goto(url, timeout=PAGE_TIMEOUT_MS, wait_until="domcontentloaded")
@@ -126,26 +124,46 @@ def scrape_site(context: BrowserContext, name: str, url: str, link_pattern: str,
         except Exception:
             pass
         page.wait_for_timeout(2000)
-
-        pairs = _collect_links(page, link_re)
+        return _collect_links(page, link_re)
     finally:
         page.close()
 
+
+def scrape_site(context: BrowserContext, name: str, url: str, link_pattern: str,
+                pages: int = 1, page_param: str = "", debug: bool = False) -> list[Article]:
+    link_re = re.compile(link_pattern)
+
     articles: dict[str, Article] = {}
-    for href, text in pairs:
-        full = urljoin(url, href)
-        aid = _extract_id(full)
-        title = " ".join(text.split())
-        if not title:
+    total_pairs = 0
+    for p in range(1, max(1, pages) + 1):
+        if p == 1:
+            page_url = url
+        elif page_param:
+            page_url = url + page_param.format(page=p)
+        else:
+            break  # 페이지네이션 파라미터가 없으면 1페이지만
+        try:
+            pairs = _load_page_links(context, page_url, link_re)
+        except Exception as exc:  # noqa: BLE001
+            if debug:
+                print(f"   ⚠️  {name} {p}페이지 로드 실패: {exc}")
             continue
-        # 같은 글의 여러 링크(썸네일 등) 중 제목이 가장 긴 것을 채택.
-        prev = articles.get(aid)
-        if prev is None or len(title) > len(prev.title):
-            articles[aid] = Article(site=name, article_id=aid, title=title, url=full)
+        total_pairs += len(pairs)
+        for href, text in pairs:
+            full = urljoin(page_url, href)
+            aid = _extract_id(full)
+            title = " ".join(text.split())
+            if not title:
+                continue
+            # 같은 글의 여러 링크(썸네일 등) 중 제목이 가장 긴 것을 채택.
+            prev = articles.get(aid)
+            if prev is None or len(title) > len(prev.title):
+                articles[aid] = Article(site=name, article_id=aid, title=title, url=full)
 
     result = list(articles.values())
     if debug:
-        print(f"[DEBUG] {name}: {len(pairs)}개 링크 후보 → {len(result)}개 글 추출")
+        print(f"[DEBUG] {name}(DOM): {max(1, pages)}페이지 · {total_pairs}개 링크 후보 "
+              f"→ {len(result)}개 글 추출")
         for a in result[:20]:
             print(f"   - ({a.article_id}) {a.title[:50]} | {a.url}")
         if not result:

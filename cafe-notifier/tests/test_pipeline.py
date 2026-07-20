@@ -84,7 +84,7 @@ BODIES = {
 _body_fetch_log: list[str] = []
 
 
-def fake_collect_articles(context, site, skip_title_contains=None, debug=False):
+def fake_collect_articles(context, site, skip_title_contains=None, pages=1, debug=False):
     return ARTICLES.get("S1", [])
 
 

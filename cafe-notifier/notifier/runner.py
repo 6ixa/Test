@@ -47,7 +47,7 @@ def run_once(cfg: Config, headless: bool = True, debug: bool = False,
             print(f"[{_now()}] '{site.name}' 확인 중...")
             try:
                 articles = collect_articles(
-                    context, site, cfg.skip_title_contains, debug=debug
+                    context, site, cfg.skip_title_contains, pages=cfg.pages, debug=debug
                 )
             except Exception as exc:  # noqa: BLE001
                 print(f"   ⚠️  '{site.name}' 크롤링 실패: {exc}")
