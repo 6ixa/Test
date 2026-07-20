@@ -68,6 +68,7 @@ class Config:
     sites: list[Site]
     max_body_fetches: int  # 사이클·사이트당 본문 조회 상한(차단 방지)
     body_delay_ms: int     # 본문 조회 사이 대기(ms)
+    skip_title_contains: list[str]  # 제목에 이 단어가 있으면 목록에서 제외(공지/필독 등)
 
 
 def load_config(config_path: Path | None = None) -> Config:
@@ -130,4 +131,6 @@ def load_config(config_path: Path | None = None) -> Config:
         sites=sites,
         max_body_fetches=int(scraping.get("max_body_fetches", 20)),
         body_delay_ms=int(scraping.get("body_delay_ms", 800)),
+        skip_title_contains=[str(s) for s in scraping.get("skip_title_contains",
+                                                          ["공지", "필독"])],
     )

@@ -12,7 +12,7 @@ from datetime import datetime
 
 from .config import Config
 from .matcher import matches_full, matches_title, resolve_for_date
-from .scrapers import fetch_body, scrape_site
+from .scrapers import collect_articles, fetch_body
 from .scrapers.base import launch_context
 from .store import SeenStore
 from .telegram import Telegram
@@ -46,8 +46,8 @@ def run_once(cfg: Config, headless: bool = True, debug: bool = False,
         for site in cfg.sites:
             print(f"[{_now()}] '{site.name}' 확인 중...")
             try:
-                articles = scrape_site(
-                    context, site.name, site.url, site.link_pattern, debug=debug
+                articles = collect_articles(
+                    context, site, cfg.skip_title_contains, debug=debug
                 )
             except Exception as exc:  # noqa: BLE001
                 print(f"   ⚠️  '{site.name}' 크롤링 실패: {exc}")

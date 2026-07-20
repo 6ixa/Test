@@ -89,6 +89,11 @@ python tests/test_pipeline.py
 python main.py --once --debug --dry-run
 ```
 
+- **네이버**는 공지/필독만 먼저 렌더링되는 SPA 특성 때문에, DOM 을 긁지 않고
+  카페 글 목록 **API 를 로그인 세션으로 직접 호출**해 일반 글만 가져옵니다
+  (공지/필독은 API 단계에서 제외). API 가 실패하면 자동으로 DOM 방식으로 폴백합니다.
+- 공지/필독 등 상단 고정글은 `config.yaml` 의 `scraping.skip_title_contains`
+  (기본 `["공지", "필독"]`) 로 제목 기준 추가 제외할 수 있습니다.
 - 글이 하나도 안 잡히면 → 로그인 세션이 유효한지, `config.yaml` 의
   `link_pattern` 이 실제 글 링크와 맞는지 확인하세요. `--debug` 출력에
   실제 링크 후보가 찍힙니다.

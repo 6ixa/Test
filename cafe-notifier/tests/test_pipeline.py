@@ -84,7 +84,7 @@ BODIES = {
 _body_fetch_log: list[str] = []
 
 
-def fake_scrape_site(context, name, url, link_pattern, debug=False):
+def fake_collect_articles(context, site, skip_title_contains=None, debug=False):
     return ARTICLES.get("S1", [])
 
 
@@ -101,7 +101,7 @@ def fake_launch_context(headless=True):
 
 def run_case(tmp_seen: Path):
     # 경계 몽키패치
-    runner.scrape_site = fake_scrape_site
+    runner.collect_articles = fake_collect_articles
     runner.fetch_body = fake_fetch_body
     runner.launch_context = fake_launch_context
     runner.Telegram = FakeTelegram
