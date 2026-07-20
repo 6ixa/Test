@@ -1,3 +1,3 @@
-from .base import Article, scrape_site
+from .base import Article, fetch_body, scrape_site
 
-__all__ = ["Article", "scrape_site"]
+__all__ = ["Article", "fetch_body", "scrape_site"]

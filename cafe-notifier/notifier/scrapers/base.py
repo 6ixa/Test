@@ -74,6 +74,46 @@ def _collect_links(page, link_re: re.Pattern) -> list[tuple[str, str]]:
     return results
 
 
+def fetch_body(context: BrowserContext, url: str, body_selector: str = "",
+               debug: bool = False) -> str:
+    """글 상세 페이지를 열어 본문 텍스트를 반환한다.
+
+    body_selector 가 지정되면 그 영역만, 없거나 못 찾으면 페이지 전체 텍스트를
+    사용한다(키워드 존재 여부만 보므로 넓게 잡아도 무방).
+    """
+    page = context.new_page()
+    try:
+        page.goto(url, timeout=PAGE_TIMEOUT_MS, wait_until="domcontentloaded")
+        try:
+            page.wait_for_load_state("networkidle", timeout=PAGE_TIMEOUT_MS)
+        except Exception:
+            pass
+        page.wait_for_timeout(1500)
+
+        text = ""
+        if body_selector:
+            try:
+                loc = page.locator(body_selector).first
+                if loc.count() > 0:
+                    text = loc.inner_text(timeout=5000)
+            except Exception:
+                text = ""
+        if not text.strip():
+            # 프레임까지 포함해 가장 긴 본문 후보를 사용(네이버는 iframe 가능).
+            candidates = []
+            for frame in [page.main_frame, *page.frames]:
+                try:
+                    candidates.append(frame.inner_text("body"))
+                except Exception:
+                    continue
+            text = max(candidates, key=len) if candidates else ""
+        if debug:
+            print(f"      [DEBUG] 본문 {len(text)}자 수집: {url}")
+        return text
+    finally:
+        page.close()
+
+
 def scrape_site(context: BrowserContext, name: str, url: str, link_pattern: str,
                 debug: bool = False) -> list[Article]:
     link_re = re.compile(link_pattern)

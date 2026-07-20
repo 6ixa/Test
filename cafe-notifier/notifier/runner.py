@@ -1,11 +1,18 @@
-"""한 번의 확인 사이클: 각 카페를 긁고 → 조건 매칭 → 새 글만 텔레그램 전송."""
+"""한 번의 확인 사이클.
+
+2단계 필터:
+  1단계(제목) — title_require(지역+날짜) 를 만족하는 '새 글'만 추린다.
+  2단계(본문) — 그 글의 상세 페이지를 열어 제목+본문에 body_require
+               (게스트·구인·주말·지역·시간) 가 모두 있으면 텔레그램 전송.
+"""
 from __future__ import annotations
 
+import time
 from datetime import datetime
 
 from .config import Config
-from .matcher import matches, resolve_for_date
-from .scrapers import scrape_site
+from .matcher import matches_full, matches_title, resolve_for_date
+from .scrapers import fetch_body, scrape_site
 from .scrapers.base import launch_context
 from .store import SeenStore
 from .telegram import Telegram
@@ -46,13 +53,43 @@ def run_once(cfg: Config, headless: bool = True, debug: bool = False,
                 print(f"   ⚠️  '{site.name}' 크롤링 실패: {exc}")
                 continue
 
+            body_fetches = 0
             for art in articles:
-                if not matches(art.title, rules):
-                    continue
                 if store.is_seen(site.name, art.article_id):
                     continue
+                # 1단계: 제목에 지역+날짜가 없으면 본문을 열지 않는다.
+                if not matches_title(art.title, rules):
+                    continue
 
-                print(f"   ✅ 조건 일치: {art.title}")
+                if rules.scan_body:
+                    if body_fetches >= cfg.max_body_fetches:
+                        if debug:
+                            print("   ⏭️  본문 조회 상한 도달 — 나머지는 다음 사이클에")
+                        break
+                    print(f"   🔎 본문 확인: {art.title}")
+                    try:
+                        body = fetch_body(
+                            context, art.url, site.body_selector, debug=debug
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"      ⚠️  본문 조회 실패(다음에 재시도): {exc}")
+                        continue  # seen 처리 안 함 → 다음 사이클 재시도
+                    body_fetches += 1
+                    combined = f"{art.title}\n{body}"
+                    # 요청 간 간격 두기(차단 방지)
+                    if cfg.body_delay_ms > 0:
+                        time.sleep(cfg.body_delay_ms / 1000)
+                else:
+                    combined = art.title
+
+                # 2단계: 최종 판정
+                if not matches_full(combined, rules):
+                    if debug:
+                        print("      → 본문 기준 불충족(제외)")
+                    store.add(site.name, art.article_id)  # 재확인 불필요, seen 처리
+                    continue
+
+                print(f"   ✅ 최종 일치: {art.title}")
                 if dry_run:
                     print(f"      (dry-run) {art.url}")
                 else:
@@ -68,6 +105,7 @@ def run_once(cfg: Config, headless: bool = True, debug: bool = False,
         context.close()
         pw.stop()
 
-    store.save()
+    if not dry_run:
+        store.save()  # dry-run 은 seen 을 저장하지 않아 반복 테스트가 가능
     print(f"[{_now()}] 완료 — 새 알림 {notified}건")
     return notified
