@@ -40,10 +40,23 @@ python -m playwright install-deps chromium   # 또는 sudo 로 실행
 
 ## 3. 설정
 
+chat_id 는 `config.yaml` 의 `telegram.chat_id` 에 이미 설정돼 있으므로,
+**봇 토큰만** 넣으면 됩니다.
+
 ```bash
 cp .env.example .env
-# .env 를 열어 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID 채우기
+# .env 를 열어 TELEGRAM_BOT_TOKEN 만 채우기
 ```
+
+이어서 텔레그램 연결이 되는지 **한 줄로 확인**하세요:
+
+```bash
+python main.py --test
+```
+
+텔레그램으로 "연결 성공" 메시지가 오면 토큰·chat_id 설정이 정상입니다.
+(메시지가 안 오면 봇 토큰이 맞는지, 그리고 텔레그램에서 **내 봇에게 먼저
+아무 메시지나 한 번 보냈는지** 확인하세요.)
 
 `config.yaml` 에서 확인 주기·키워드·대상 게시판을 조정할 수 있습니다.
 

@@ -76,8 +76,13 @@ def load_config(config_path: Path | None = None) -> Config:
     config_path = config_path or (ROOT / "config.yaml")
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
 
+    tele = raw.get("telegram", {}) or {}
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    # chat_id: 환경변수 우선, 없으면 config.yaml 의 telegram.chat_id 사용
+    chat_id = (
+        os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+        or str(tele.get("chat_id", "")).strip()
+    )
 
     match_raw = raw.get("match", {}) or {}
 
@@ -114,7 +119,6 @@ def load_config(config_path: Path | None = None) -> Config:
         for s in raw.get("sites", [])
     ]
 
-    tele = raw.get("telegram", {}) or {}
     scraping = raw.get("scraping", {}) or {}
 
     return Config(
