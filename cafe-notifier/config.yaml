@@ -85,7 +85,9 @@ sites:
 
   - name: "다음 동아리 농구방"
     type: daum
-    url: "https://cafe.daum.net/dongarry/Dilr?boardType="
+    # PC(cafe.daum.net)는 게시판을 iframe/SPA 로 띄워 자동 읽기가 어려움 →
+    # 서버 렌더링되는 모바일(m.cafe.daum.net) 을 대상으로 함.
+    url: "https://m.cafe.daum.net/dongarry/Dilr?boardType="
     link_pattern: "/dongarry/[A-Za-z0-9]+/\\d+"
     body_selector: "#article, .article_view, .cafe_article"
     page_param: "&page={page}"   # 2페이지 이상 확인 시 붙이는 파라미터(--debug 로 확인·조정)

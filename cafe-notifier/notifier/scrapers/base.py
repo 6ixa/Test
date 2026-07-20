@@ -52,9 +52,10 @@ def launch_context(headless: bool = True) -> tuple[object, BrowserContext]:
     return pw, context
 
 
-def _collect_links(page, link_re: re.Pattern) -> list[tuple[str, str]]:
-    """현재 페이지 + 모든 프레임에서 (href, text) 목록 수집."""
-    results: list[tuple[str, str]] = []
+def _collect_anchors(page) -> tuple[list[tuple[str, str]], list[str]]:
+    """현재 페이지 + 모든 프레임에서 (href, text) 전체와 프레임 URL 목록을 수집."""
+    anchors: list[tuple[str, str]] = []
+    frame_urls: list[str] = []
     frames = [page.main_frame, *page.frames]
     seen_frames = set()
     for frame in frames:
@@ -62,16 +63,20 @@ def _collect_links(page, link_re: re.Pattern) -> list[tuple[str, str]]:
             continue
         seen_frames.add(id(frame))
         try:
-            anchors = frame.eval_on_selector_all(
+            frame_urls.append(frame.url)
+        except Exception:
+            pass
+        try:
+            got = frame.eval_on_selector_all(
                 "a[href]",
                 "els => els.map(e => [e.href, (e.textContent||'').trim()])",
             )
         except Exception:
             continue
-        for href, text in anchors:
-            if href and link_re.search(href):
-                results.append((href, text))
-    return results
+        for href, text in got:
+            if href:
+                anchors.append((href, text))
+    return anchors, frame_urls
 
 
 def fetch_body(context: BrowserContext, url: str, body_selector: str = "",
@@ -114,7 +119,7 @@ def fetch_body(context: BrowserContext, url: str, body_selector: str = "",
         page.close()
 
 
-def _load_page_links(context, url: str, link_re) -> list[tuple[str, str]]:
+def _load_page_anchors(context, url: str) -> tuple[list[tuple[str, str]], list[str]]:
     page = context.new_page()
     try:
         page.goto(url, timeout=PAGE_TIMEOUT_MS, wait_until="domcontentloaded")
@@ -124,9 +129,31 @@ def _load_page_links(context, url: str, link_re) -> list[tuple[str, str]]:
         except Exception:
             pass
         page.wait_for_timeout(2000)
-        return _collect_links(page, link_re)
+        return _collect_anchors(page)
     finally:
         page.close()
+
+
+def _dump_diagnostics(name: str, anchors: list[tuple[str, str]], frame_urls: list[str]) -> None:
+    """링크가 안 잡혔을 때 실제 페이지 구조를 진단용으로 출력."""
+    print(f"   🔬 [진단] 페이지에서 발견된 전체 링크: {len(anchors)}개")
+    if frame_urls:
+        print(f"   🔬 [진단] 프레임 {len(frame_urls)}개:")
+        for u in frame_urls[:8]:
+            print(f"        · {u}")
+    # 중복 제거한 href 샘플(글 링크의 실제 형식을 파악하기 위함)
+    seen, sample = set(), []
+    for href, _text in anchors:
+        if href not in seen:
+            seen.add(href)
+            sample.append(href)
+        if len(sample) >= 25:
+            break
+    print("   🔬 [진단] href 샘플(이 형식을 보고 link_pattern 을 맞춥니다):")
+    for h in sample:
+        print(f"        {h}")
+    if not anchors:
+        print("   🔬 [진단] 링크가 0개 → 로그인 필요/페이지 미로딩/봇 차단 가능성.")
 
 
 def scrape_site(context: BrowserContext, name: str, url: str, link_pattern: str,
@@ -134,7 +161,9 @@ def scrape_site(context: BrowserContext, name: str, url: str, link_pattern: str,
     link_re = re.compile(link_pattern)
 
     articles: dict[str, Article] = {}
-    total_pairs = 0
+    total_anchors = 0
+    last_anchors: list[tuple[str, str]] = []
+    last_frames: list[str] = []
     for p in range(1, max(1, pages) + 1):
         if p == 1:
             page_url = url
@@ -143,13 +172,16 @@ def scrape_site(context: BrowserContext, name: str, url: str, link_pattern: str,
         else:
             break  # 페이지네이션 파라미터가 없으면 1페이지만
         try:
-            pairs = _load_page_links(context, page_url, link_re)
+            anchors, frame_urls = _load_page_anchors(context, page_url)
         except Exception as exc:  # noqa: BLE001
             if debug:
                 print(f"   ⚠️  {name} {p}페이지 로드 실패: {exc}")
             continue
-        total_pairs += len(pairs)
-        for href, text in pairs:
+        total_anchors += len(anchors)
+        last_anchors, last_frames = anchors, frame_urls
+        for href, text in anchors:
+            if not link_re.search(href):
+                continue
             full = urljoin(page_url, href)
             aid = _extract_id(full)
             title = " ".join(text.split())
@@ -162,11 +194,11 @@ def scrape_site(context: BrowserContext, name: str, url: str, link_pattern: str,
 
     result = list(articles.values())
     if debug:
-        print(f"[DEBUG] {name}(DOM): {max(1, pages)}페이지 · {total_pairs}개 링크 후보 "
-              f"→ {len(result)}개 글 추출")
+        print(f"[DEBUG] {name}(DOM): {max(1, pages)}페이지 · 전체 링크 {total_anchors}개 "
+              f"→ 글 {len(result)}개 추출")
         for a in result[:20]:
             print(f"   - ({a.article_id}) {a.title[:50]} | {a.url}")
         if not result:
-            print("   ⚠️  추출된 글이 없습니다. link_pattern 을 확인하거나,")
-            print("       로그인 세션이 유효한지(login.py 재실행) 점검하세요.")
+            print("   ⚠️  글이 추출되지 않았습니다. 아래 진단으로 link_pattern 을 확인하세요.")
+            _dump_diagnostics(name, last_anchors, last_frames)
     return result
