@@ -31,12 +31,20 @@ def _check_login_and_api(ctx, site):
         except Exception as exc:  # noqa: BLE001
             print(f"   ⚠️  페이지 이동 실패: {exc}")
             return
-        # 로그인 상태 추정
+        # 로그인 상태 추정: 페이지 안에 '로그인 페이지로 가는 링크'가 있으면
+        # 로그인 필요(비회원) 상태일 가능성이 높다.
         try:
-            html = page.content()
-            logged_out = ("로그인" in html and ("nidlogin" in html or "logins.daum" in html
-                                              or "accountLogin" in html))
-            print(f"   로그인 상태(추정): {'로그아웃된 듯 ⚠️' if logged_out else 'OK 로 보임'}")
+            login_links = page.eval_on_selector_all(
+                "a[href]",
+                "els => els.map(e => e.href).filter(h => "
+                "h.includes('loginform.do') || h.includes('nidlogin.login') "
+                "|| h.includes('accounts/loginform'))",
+            )
+            if login_links:
+                print(f"   ⚠️  로그인 안내 링크 발견 → 로그인/가입 필요 가능성 높음")
+                print(f"        예: {login_links[0]}")
+            else:
+                print("   로그인 상태: 로그인 링크 없음(정상일 가능성 높음)")
         except Exception:
             pass
         # 네이버는 원시 API 응답을 확인
