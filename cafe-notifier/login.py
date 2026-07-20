@@ -11,6 +11,8 @@
 """
 from __future__ import annotations
 
+import re
+
 from notifier.config import load_config
 from notifier.scrapers.base import launch_context
 
@@ -18,6 +20,42 @@ LOGIN_URLS = {
     "naver": "https://nid.naver.com/nidlogin.login",
     "daum": "https://logins.daum.net/accounts/loginform.do",
 }
+
+
+def _verify(context, cfg) -> None:
+    """로그인/가입 상태를 게시판에서 직접 확인해 출력한다."""
+    print("\n" + "=" * 64)
+    print(" 로그인 상태 확인")
+    print("=" * 64)
+    for site in cfg.sites:
+        page = context.new_page()
+        try:
+            page.goto(site.url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(2000)
+            hrefs = page.eval_on_selector_all("a[href]", "els => els.map(e => e.href)")
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [{site.type}] {site.name}: 확인 실패({exc})")
+            page.close()
+            continue
+        page.close()
+
+        login_links = [h for h in hrefs if "loginform.do" in h or "nidlogin.login" in h]
+        member_links = [h for h in hrefs if "_newmember" in h]
+        if site.type == "naver":
+            # 네이버는 API 로 동작하므로 DOM 글 링크는 참고만.
+            note = "❌ 로그인 안 됨" if login_links else "✅ 로그인된 것으로 보임(API 사용)"
+            print(f"  [naver] {site.name}: {note}")
+            continue
+
+        arts = [h for h in hrefs if re.search(r"/dongarry/[A-Za-z0-9]+/\d+", h)
+                and "IVII" not in h]  # IVII = 공지 게시판
+        if login_links:
+            print(f"  [daum] {site.name}: ❌ 아직 로그인 안 됨 → 이 창에서 다시 로그인 필요")
+        elif member_links:
+            print(f"  [daum] {site.name}: ⚠️ 카페 미가입으로 보임 → '동아리농구방' 가입 필요")
+        else:
+            print(f"  [daum] {site.name}: ✅ 로그인/가입 정상으로 보임 "
+                  f"(글 링크 {len(arts)}개 발견)")
 
 
 def main() -> None:
@@ -49,7 +87,8 @@ def main() -> None:
 
         print("\n각 카페에 로그인하고, 게시판 탭에서 일반 글이 보이는지 확인했으면")
         input("이 터미널로 돌아와 Enter 를 누르세요... ")
-        print("세션을 저장하고 브라우저를 닫습니다.")
+        _verify(context, cfg)
+        print("\n세션을 저장하고 브라우저를 닫습니다.")
     finally:
         context.close()
         pw.stop()
