@@ -72,13 +72,13 @@ match:
 #                   --debug 로 실제 페이지를 보고 필요시 조정하세요.
 # -------------------------------------------------------------
 sites:
-  - name: "네이버 동가리 카페"
+  - name: "네이버 농심 카페"
     type: naver
     url: "https://cafe.naver.com/f-e/cafes/10586238/menus/34"
     link_pattern: "/cafes/10586238/articles/\\d+"
     body_selector: ".article_viewer, .se-main-container, #app"
 
-  - name: "다음 동가리 카페"
+  - name: "다음 동아리 농구방"
     type: daum
     url: "https://m.cafe.daum.net/dongarry/Dilr?boardType="
     link_pattern: "/dongarry/[A-Za-z0-9]+/\\d+"
