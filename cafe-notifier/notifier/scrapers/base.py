@@ -128,7 +128,19 @@ def _load_page_anchors(context, url: str) -> tuple[list[tuple[str, str]], list[s
             page.wait_for_load_state("networkidle", timeout=PAGE_TIMEOUT_MS)
         except Exception:
             pass
-        page.wait_for_timeout(2000)
+        page.wait_for_timeout(1500)
+        # 무한 스크롤/지연 로딩(모바일 다음 등) 대비: 높이가 안 늘 때까지 스크롤.
+        try:
+            prev_h = 0
+            for _ in range(8):
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                page.wait_for_timeout(1200)
+                h = page.evaluate("document.body.scrollHeight") or 0
+                if h <= prev_h:
+                    break
+                prev_h = h
+        except Exception:
+            pass
         return _collect_anchors(page)
     finally:
         page.close()
@@ -200,5 +212,6 @@ def scrape_site(context: BrowserContext, name: str, url: str, link_pattern: str,
             print(f"   - ({a.article_id}) {a.title[:50]} | {a.url}")
         if not result:
             print("   ⚠️  글이 추출되지 않았습니다. 아래 진단으로 link_pattern 을 확인하세요.")
-            _dump_diagnostics(name, last_anchors, last_frames)
+        # 진단: 실제 href 형식을 항상 일부 보여줌(정규식/구조 확인용).
+        _dump_diagnostics(name, last_anchors, last_frames)
     return result
