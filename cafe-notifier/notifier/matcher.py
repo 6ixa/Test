@@ -5,8 +5,10 @@ from .config import MatchRules
 
 
 def _normalize(text: str) -> str:
-    # 공백 제거 + 소문자화 → "게스트 구인" 과 "게스트구인" 을 동일 취급
-    return "".join(text.split()).lower()
+    # 소문자화만 하고 공백은 유지한다.
+    # (공백을 제거하면 "부평 일요일" → "부평일요일" 처럼 인접 단어가 붙어
+    #  제외어 "평일" 같은 엉뚱한 부분일치가 생기므로 유지한다.)
+    return text.lower()
 
 
 def matches(text: str, rules: MatchRules) -> bool:
