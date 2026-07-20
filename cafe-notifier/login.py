@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 
 from notifier.config import load_config
-from notifier.scrapers.base import launch_context
+from notifier.scrapers.base import STATE_FILE, launch_context, save_state
 
 LOGIN_URLS = {
     "naver": "https://nid.naver.com/nidlogin.login",
@@ -88,7 +88,8 @@ def main() -> None:
         print("\n각 카페에 로그인하고, 게시판 탭에서 일반 글이 보이는지 확인했으면")
         input("이 터미널로 돌아와 Enter 를 누르세요... ")
         _verify(context, cfg)
-        print("\n세션을 저장하고 브라우저를 닫습니다.")
+        save_state(context)  # 로그인 상태를 auth_state.json 으로 저장(다음 실행에 재사용)
+        print(f"\n세션 저장 완료: {STATE_FILE.name}")
     finally:
         context.close()
         pw.stop()

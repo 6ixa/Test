@@ -16,7 +16,14 @@ from urllib.parse import urljoin
 from playwright.sync_api import BrowserContext, sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-USER_DATA_DIR = ROOT / "user-data"  # 로그인 세션(쿠키) 저장 위치
+USER_DATA_DIR = ROOT / "user-data"        # (구) 영속 프로필 위치
+STATE_FILE = ROOT / "auth_state.json"     # 로그인 상태(쿠키+로컬스토리지) 저장 파일
+
+# 브라우저 헤드리스에서 자동화 탐지를 줄이기 위한 UA(실사용 크롬과 유사).
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+)
 
 # 네이버 새 카페는 iframe 없이 SPA 로 뜨지만, 혹시 모를 프레임까지 훑기 위한 대기 시간.
 PAGE_TIMEOUT_MS = 30_000
@@ -36,20 +43,29 @@ def _extract_id(url: str) -> str:
     return nums[-1] if nums else url
 
 
-def launch_context(headless: bool = True) -> tuple[object, BrowserContext]:
-    """영속 컨텍스트(로그인 세션 유지)를 연다. (playwright, context) 반환."""
+def launch_context(headless: bool = True, load_state: bool = True) -> tuple[object, BrowserContext]:
+    """
+    브라우저 컨텍스트를 연다. (playwright, context) 반환.
+
+    로그인 상태는 auth_state.json(storage_state) 로 저장/복원한다.
+    영속 프로필(user-data)보다 세션 쿠키까지 확실히 유지되어 안정적이다.
+    """
     pw = sync_playwright().start()
-    context = pw.chromium.launch_persistent_context(
-        user_data_dir=str(USER_DATA_DIR),
-        headless=headless,
+    browser = pw.chromium.launch(headless=headless)
+    kwargs = dict(
         viewport={"width": 1280, "height": 900},
         locale="ko-KR",
-        user_agent=(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-        ),
+        user_agent=USER_AGENT,
     )
+    if load_state and STATE_FILE.exists():
+        kwargs["storage_state"] = str(STATE_FILE)
+    context = browser.new_context(**kwargs)
     return pw, context
+
+
+def save_state(context) -> None:
+    """현재 로그인 상태를 auth_state.json 으로 저장."""
+    context.storage_state(path=str(STATE_FILE))
 
 
 def _collect_anchors(page) -> tuple[list[tuple[str, str]], list[str]]:
